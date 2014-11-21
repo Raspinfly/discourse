@@ -48,7 +48,7 @@ describe TopicLinkClick do
         let(:click) { TopicLinkClick.create_from(url: "url that doesn't exist", post_id: @post.id, ip: '127.0.0.1') }
 
         it "returns nil" do
-          click.should be_nil
+          click.should == nil
         end
       end
 
@@ -76,6 +76,27 @@ describe TopicLinkClick do
           it "should not record the click due to rate limiting" do
             -> { TopicLinkClick.create_from(url: @topic_link.url, post_id: @post.id, ip: '127.0.0.1') }.should_not change(TopicLinkClick, :count)
           end
+        end
+      end
+
+      context "relative urls" do
+        let(:host) { URI.parse(Discourse.base_url).host }
+
+        it 'returns the url' do
+          url = TopicLinkClick.create_from(url: '/relative-url', post_id: @post.id, ip: '127.0.0.1')
+          url.should == "/relative-url"
+        end
+
+        it 'finds a protocol relative urls with a host' do
+          url = "//#{host}/relative-url"
+          redirect = TopicLinkClick.create_from(url: url)
+          redirect.should == url
+        end
+
+        it "returns the url if it's on our host" do
+          url = "http://#{host}/relative-url"
+          redirect = TopicLinkClick.create_from(url: url)
+          redirect.should == url
         end
       end
 

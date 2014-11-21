@@ -1,4 +1,5 @@
 require_dependency 'sass/discourse_sass_compiler'
+require_dependency 'sass/discourse_stylesheets'
 
 class SiteCustomization < ActiveRecord::Base
   ENABLED_KEY = '7e202ef2-56d7-47d5-98d8-a9c8d15e57dd'
@@ -17,7 +18,6 @@ class SiteCustomization < ActiveRecord::Base
     DiscourseSassCompiler.compile(scss, 'custom')
   rescue => e
     puts e.backtrace.join("\n") unless Sass::SyntaxError === e
-
     raise e
   end
 
@@ -34,29 +34,22 @@ class SiteCustomization < ActiveRecord::Base
   end
 
   after_save do
-    if stylesheet_changed?
-      File.delete(stylesheet_fullpath) if File.exists?(stylesheet_fullpath)
-    end
-    if mobile_stylesheet_changed?
-      File.delete(stylesheet_fullpath(:mobile)) if File.exists?(stylesheet_fullpath(:mobile))
-    end
+    File.delete(stylesheet_fullpath) if File.exists?(stylesheet_fullpath) && stylesheet_changed?
+    File.delete(stylesheet_fullpath(:mobile)) if File.exists?(stylesheet_fullpath(:mobile)) && mobile_stylesheet_changed?
     remove_from_cache!
-    if stylesheet_changed? or mobile_stylesheet_changed?
+    if stylesheet_changed? || mobile_stylesheet_changed?
       ensure_stylesheets_on_disk!
       # TODO: this is broken now because there's mobile stuff too
       MessageBus.publish "/file-change/#{key}", stylesheet_hash
     end
     MessageBus.publish "/header-change/#{key}", header if header_changed?
-
+    MessageBus.publish "/footer-change/#{key}", footer if footer_changed?
+    DiscourseStylesheets.cache.clear
   end
 
   after_destroy do
-    if File.exists?(stylesheet_fullpath)
-      File.delete stylesheet_fullpath
-    end
-    if File.exists?(stylesheet_fullpath(:mobile))
-      File.delete stylesheet_fullpath(:mobile)
-    end
+    File.delete(stylesheet_fullpath) if File.exists?(stylesheet_fullpath)
+    File.delete(stylesheet_fullpath(:mobile)) if File.exists?(stylesheet_fullpath(:mobile))
     self.remove_from_cache!
   end
 
@@ -92,6 +85,16 @@ class SiteCustomization < ActiveRecord::Base
     style = lookup_style(preview_style)
     if style && ((target != :mobile && style.header) || (target == :mobile && style.mobile_header))
       target == :mobile ? style.mobile_header.html_safe : style.header.html_safe
+    else
+      ""
+    end
+  end
+
+  def self.custom_footer(preview_style, target=:dekstop)
+    preview_style ||= enabled_style_key
+    style = lookup_style(preview_style)
+    if style && ((target != :mobile && style.footer) || (target == :mobile && style.mobile_footer))
+      target == :mobile ? style.mobile_footer.html_safe : style.footer.html_safe
     else
       ""
     end
@@ -179,14 +182,19 @@ class SiteCustomization < ActiveRecord::Base
     return "" unless stylesheet.present?
     return @stylesheet_link_tag if @stylesheet_link_tag
     ensure_stylesheets_on_disk!
-    @stylesheet_link_tag = "<link class=\"custom-css\" rel=\"stylesheet\" href=\"/#{CACHE_PATH}#{stylesheet_filename}?#{stylesheet_hash}\" type=\"text/css\" media=\"screen\">"
+    @stylesheet_link_tag = link_css_tag "/#{CACHE_PATH}#{stylesheet_filename}?#{stylesheet_hash}"
   end
 
   def mobile_stylesheet_link_tag
     return "" unless mobile_stylesheet.present?
     return @mobile_stylesheet_link_tag if @mobile_stylesheet_link_tag
     ensure_stylesheets_on_disk!
-    @mobile_stylesheet_link_tag = "<link class=\"custom-css\" rel=\"stylesheet\" href=\"/#{CACHE_PATH}#{stylesheet_filename(:mobile)}?#{stylesheet_hash(:mobile)}\" type=\"text/css\" media=\"screen\">"
+    @mobile_stylesheet_link_tag = link_css_tag "/#{CACHE_PATH}#{stylesheet_filename(:mobile)}?#{stylesheet_hash(:mobile)}"
+  end
+
+  def link_css_tag(href)
+    href = (GlobalSetting.cdn_url || "") + href
+    %Q{<link class="custom-css" rel="stylesheet" href="#{href}" type="text/css" media="all">}
   end
 end
 
@@ -209,6 +217,8 @@ end
 #  mobile_stylesheet       :text
 #  mobile_header           :text
 #  mobile_stylesheet_baked :text
+#  footer                  :text
+#  mobile_footer           :text
 #
 # Indexes
 #

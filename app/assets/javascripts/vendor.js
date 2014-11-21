@@ -18,7 +18,7 @@
 //= require bootstrap-dropdown.js
 //= require bootstrap-modal.js
 //= require bootstrap-transition.js
-//= require chosen.jquery.js
+//= require select2.js
 //= require favcount.js
 //= require jquery.ba-replacetext.js
 //= require jquery.ba-resize.min.js
@@ -39,4 +39,6 @@
 //= require lock-on.js
 //= require ember-cloaking
 //= require break_string
+//= require buffered-proxy
+//= require jquery.autoellipsis-1.0.10.min.js
 //= require_tree ./discourse/ember

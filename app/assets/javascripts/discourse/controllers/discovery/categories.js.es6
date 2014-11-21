@@ -1,26 +1,22 @@
-/**
-  This controller supports actions when listing categories
+import DiscoveryController from 'discourse/controllers/discovery';
 
-  @class DiscoveryCategoriesController
-  @extends Discourse.ObjectController
-  @namespace Discourse
-  @module Discourse
-**/
-export default Discourse.DiscoveryController.extend({
+export default DiscoveryController.extend({
   needs: ['modal', 'discovery'],
 
-  actions: {
-    toggleOrdering: function(){
-      this.set("ordering",!this.get("ordering"));
-    },
+  withLogo: Em.computed.filterBy('categories', 'logo_url'),
+  showPostsColumn: Em.computed.empty('withLogo'),
 
+  actions: {
     refresh: function() {
       var self = this;
 
       // Don't refresh if we're still loading
       if (this.get('controllers.discovery.loading')) { return; }
 
-      this.send('loading');
+      // If we `send('loading')` here, due to returning true it bubbles up to the
+      // router and ember throws an error due to missing `handlerInfos`.
+      // Lesson learned: Don't call `loading` yourself.
+      this.set('controllers.discovery.loading', true);
       Discourse.CategoryList.list('categories').then(function(list) {
         self.set('model', list);
         self.send('loadingComplete');
@@ -31,10 +27,6 @@ export default Discourse.DiscoveryController.extend({
   canEdit: function() {
     return Discourse.User.currentProp('staff');
   }.property(),
-
-  moveCategory: function(categoryId, position){
-    this.get('model.categories').moveCategory(categoryId, position);
-  },
 
   latestTopicOnly: function() {
     return this.get('categories').find(function(c) { return c.get('featuredTopics.length') > 1; }) === undefined;

@@ -1,13 +1,7 @@
-/**
-  This controller supports actions related to flagging
+import ModalFunctionality from 'discourse/mixins/modal-functionality';
+import ObjectController from 'discourse/controllers/object';
 
-  @class FlagController
-  @extends Discourse.ObjectController
-  @namespace Discourse
-  @uses Discourse.ModalFunctionality
-  @module Discourse
-**/
-export default Discourse.ObjectController.extend(Discourse.ModalFunctionality, {
+export default ObjectController.extend(ModalFunctionality, {
 
   onShow: function() {
     this.set('selected', null);
@@ -62,9 +56,9 @@ export default Discourse.ObjectController.extend(Discourse.ModalFunctionality, {
 
   submitText: function(){
     if (this.get('selected.is_custom_flag')) {
-      return I18n.t(this.get('flagTopic') ? "flagging_topic.notify_action" : "flagging.notify_action");
+      return "<i class='fa fa-envelope'></i>" + (I18n.t(this.get('flagTopic') ? "flagging_topic.notify_action" : "flagging.notify_action"));
     } else {
-      return I18n.t(this.get('flagTopic') ? "flagging_topic.action" : "flagging.action");
+      return "<i class='fa fa-flag'></i>" + (I18n.t(this.get('flagTopic') ? "flagging_topic.action" : "flagging.action"));
     }
   }.property('selected.is_custom_flag'),
 
@@ -87,17 +81,21 @@ export default Discourse.ObjectController.extend(Discourse.ModalFunctionality, {
       if (opts) params = $.extend(params, opts);
 
       this.send('hideModal');
-      postAction.act(params).then(function() {
+      postAction.act(params).then(function(result) {
         self.send('closeModal');
       }, function(errors) {
-        self.send('showModal');
-        self.displayErrors(errors);
+        self.send('closeModal');
+        if (errors && errors.responseText) {
+          bootbox.alert($.parseJSON(errors.responseText).errors);
+        } else {
+          bootbox.alert(I18n.t('generic_error'));
+        }
       });
     },
 
     changePostActionType: function(action) {
       this.set('selected', action);
-    }
+    },
   },
 
   canDeleteSpammer: function() {
@@ -109,11 +107,6 @@ export default Discourse.ObjectController.extend(Discourse.ModalFunctionality, {
       return false;
     }
   }.property('selected.name_key', 'userDetails.can_be_deleted', 'userDetails.can_delete_all_posts'),
-
-  deleteSpammer: function() {
-    this.send('closeModal');
-    this.get('userDetails').deleteAsSpammer(function() { window.location.reload(); });
-  },
 
   usernameChanged: function() {
     this.set('userDetails', null);

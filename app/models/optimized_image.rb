@@ -3,7 +3,7 @@ require "digest/sha1"
 class OptimizedImage < ActiveRecord::Base
   belongs_to :upload
 
-  def self.create_for(upload, width, height)
+  def self.create_for(upload, width, height, opts={})
     return unless width > 0 && height > 0
 
     # do we already have that thumbnail?
@@ -17,43 +17,53 @@ class OptimizedImage < ActiveRecord::Base
 
     # create the thumbnail otherwise
     unless thumbnail
-      @image_sorcery_loaded ||= require "image_sorcery"
-
       external_copy = Discourse.store.download(upload) if Discourse.store.external?
       original_path = if Discourse.store.external?
-        external_copy.path
+        external_copy.try(:path)
       else
         Discourse.store.path_for(upload)
       end
 
-      # create a temp file with the same extension as the original
-      extension = File.extname(original_path)
-      temp_file = Tempfile.new(["discourse-thumbnail", extension])
-      temp_path = temp_file.path
-
-      if ImageSorcery.new("#{original_path}[0]").convert(temp_path, resize: "#{width}x#{height}!")
-        thumbnail = OptimizedImage.create!(
-          upload_id: upload.id,
-          sha1: Digest::SHA1.file(temp_path).hexdigest,
-          extension: File.extname(temp_path),
-          width: width,
-          height: height,
-          url: "",
-        )
-        # store the optimized image and update its url
-        url = Discourse.store.store_optimized_image(temp_file, thumbnail)
-        if url.present?
-          thumbnail.url = url
-          thumbnail.save
-        else
-          Rails.logger.error("Failed to store avatar #{size} for #{upload.url} from #{source}")
-        end
+      if original_path.blank?
+        Rails.logger.error("Could not find file in the store located at url: #{upload.url}")
       else
-        Rails.logger.error("Failed to create optimized image #{width}x#{height} for #{upload.url}")
+        # create a temp file with the same extension as the original
+        extension = File.extname(original_path)
+        temp_file = Tempfile.new(["discourse-thumbnail", extension])
+        temp_path = temp_file.path
+
+        if extension =~ /\.svg$/i
+          FileUtils.cp(original_path, temp_path)
+          resized = true
+        else
+          resized = resize(original_path, temp_path, width, height, opts[:allow_animation])
+        end
+
+        if resized
+          thumbnail = OptimizedImage.create!(
+            upload_id: upload.id,
+            sha1: Digest::SHA1.file(temp_path).hexdigest,
+            extension: File.extname(temp_path),
+            width: width,
+            height: height,
+            url: "",
+          )
+          # store the optimized image and update its url
+          url = Discourse.store.store_optimized_image(temp_file, thumbnail)
+          if url.present?
+            thumbnail.url = url
+            thumbnail.save
+          else
+            Rails.logger.error("Failed to store avatar #{size} for #{upload.url} from #{source}")
+          end
+        else
+          Rails.logger.error("Failed to create optimized image #{width}x#{height} for #{upload.url}")
+        end
+
+        # close && remove temp file
+        temp_file.close!
       end
 
-      # close && remove temp file
-      temp_file.close!
       # make sure we remove the cached copy from external stores
       external_copy.close! if Discourse.store.external?
     end
@@ -65,6 +75,42 @@ class OptimizedImage < ActiveRecord::Base
     OptimizedImage.transaction do
       Discourse.store.remove_optimized_image(self)
       super
+    end
+  end
+
+  def self.resize(from, to, width, height, allow_animation=false)
+    # NOTE: ORDER is important!
+    instructions = if allow_animation
+      %W{
+        #{from}
+        -coalesce
+        -gravity center
+        -thumbnail #{width}x#{height}^
+        -extent #{width}x#{height}
+        -layers optimize
+        #{to}
+      }.join(" ")
+    else
+      %W{
+        #{from}[0]
+        -background transparent
+        -gravity center
+        -thumbnail #{width}x#{height}^
+        -extent #{width}x#{height}
+        -interpolate bicubic
+        -unsharp 2x0.5+0.7+0
+        -quality 98
+        #{to}
+      }.join(" ")
+    end
+
+    `convert #{instructions}`
+
+    if $?.exitstatus == 0
+      ImageOptim.new.optimize_image(to) rescue nil
+      true
+    else
+      false
     end
   end
 

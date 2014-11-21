@@ -1,11 +1,4 @@
-/**
-  A controller for displaying messages as the user composes a message.
-
-  @class ComposerMessagesController
-  @extends Ember.ArrayController
-  @namespace Discourse
-  @module Discourse
-**/
+// A controller for displaying messages as the user composes a message.
 export default Ember.ArrayController.extend({
   needs: ['composer'],
 
@@ -28,6 +21,15 @@ export default Ember.ArrayController.extend({
       @params {Object} message The message to dismiss
     **/
     closeMessage: function(message) {
+      this.removeObject(message);
+    },
+
+    hideMessage: function(message) {
+      var messagesByTemplate = this.get('messagesByTemplate'),
+        templateName = message.get('templateName');
+
+      // kind of hacky but the visibility depends on this
+      messagesByTemplate[templateName] = undefined;
       this.removeObject(message);
     }
   },
@@ -57,7 +59,7 @@ export default Ember.ArrayController.extend({
   reset: function() {
     this.clear();
     this.set('messagesByTemplate', {});
-    this.set('queuedForTyping', new Em.Set());
+    this.set('queuedForTyping', []);
     this.set('checkedMessages', false);
   },
 

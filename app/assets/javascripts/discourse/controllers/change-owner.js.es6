@@ -1,13 +1,8 @@
-/**
-  Modal related to changing the ownership of posts
+import ModalFunctionality from 'discourse/mixins/modal-functionality';
+import ObjectController from 'discourse/controllers/object';
 
-  @class ChangeOwnerController
-  @extends Discourse.ObjectController
-  @namespace Discourse
-  @uses Discourse.ModalFunctionality
-  @module Discourse
- **/
-export default Discourse.ObjectController.extend(Discourse.SelectedPostsCount, Discourse.ModalFunctionality, {
+// Modal related to changing the ownership of posts
+export default ObjectController.extend(Discourse.SelectedPostsCount, ModalFunctionality, {
   needs: ['topic'],
 
   topicController: Em.computed.alias('controllers.topic'),

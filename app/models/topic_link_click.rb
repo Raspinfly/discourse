@@ -31,6 +31,12 @@ class TopicLinkClick < ActiveRecord::Base
     unless link.present?
       return args[:url] if args[:url] =~ /^\//
 
+      begin
+        uri = URI.parse(args[:url])
+        return args[:url] if uri.host == URI.parse(Discourse.base_url).host
+      rescue
+      end
+
       # If we have it somewhere else on the site, just allow the redirect. This is
       # likely due to a onebox of another topic.
       link = TopicLink.find_by(url: args[:url])
@@ -64,5 +70,5 @@ end
 #
 # Indexes
 #
-#  index_forum_thread_link_clicks_on_forum_thread_link_id  (topic_link_id)
+#  by_link  (topic_link_id)
 #

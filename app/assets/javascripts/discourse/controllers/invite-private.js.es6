@@ -1,13 +1,7 @@
-/**
-  The modal for inviting a user to a private topic
+import ModalFunctionality from 'discourse/mixins/modal-functionality';
+import ObjectController from 'discourse/controllers/object';
 
-  @class InvitePrivateController
-  @extends Discourse.Controller
-  @namespace Discourse
-  @uses Discourse.ModalFunctionality
-  @module Discourse
-**/
-export default Discourse.ObjectController.extend(Discourse.ModalFunctionality, {
+export default ObjectController.extend(ModalFunctionality, {
   modalClass: 'invite',
 
   isAdmin: function(){
